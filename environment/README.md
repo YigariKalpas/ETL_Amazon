@@ -62,4 +62,5 @@ rem 日常检查
 
 - 第三方依赖尚未安装：具体清单取决于 ETL 工具与数据库选型，届时写入
   `requirements.txt` 并用 `pip install -r` 固化，**不在环境层预装无关包**。
-- 建议同批补充 `.gitignore`（至少含 `.venv/`、`.tmp/`、`movies.txt*`、`*.duckdb`、`debug.log`）。
+- 根目录 `.gitignore` 已建立，覆盖 `.venv/`、`.tmp/`、`movies.txt*`、数据库/列存/归档、采集快照、日志与凭证。
+  仓库首次提交已排除全部原始数据（`.git` 约 0.09 MB）。
