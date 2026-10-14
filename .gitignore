@@ -100,3 +100,12 @@ secrets.json
 *.key
 *.p12
 credentials.json
+
+# --- 8. 项目内第三方运行时（体积大、可重建；由 scripts\setup_pdi.cmd 生成）--------
+/tools/
+
+# --- 9. PDI/Kettle 运行期缓存（保留 kettle.properties 等配置）-------------------
+/etl/kettle/.kettle/db.cache
+/etl/kettle/.kettle/.spoon
+/etl/kettle/.kettle/shared.xml
+/etl/kettle/.kettle/logs/
