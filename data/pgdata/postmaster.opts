@@ -1,0 +1,1 @@
+E:/ETL_Amazon/tools/pgsql/bin/postgres.exe "-D" "E:\ETL_Amazon\data\pgdata" "-p" "5432" "-c" "listen_addresses=127.0.0.1" "-c" "logging_collector=on" "-c" "log_directory=E:\ETL_Amazon\logs" "-c" "log_filename=pg-%Y-%m-%d.log"
