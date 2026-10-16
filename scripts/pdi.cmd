@@ -1,14 +1,16 @@
 @echo off
 rem ============================================================
 rem Project-local PDI/Kettle launcher.
-rem Injects a project-private JDK 11 and KETTLE_HOME, so the
-rem machine-wide Java 25 is left untouched. Nothing is written
+rem Injects a project-private JDK 11, KETTLE_HOME and metastore dir,
+rem so the machine-wide Java 25 is left untouched. Nothing is written
 rem to system environment variables.
 rem Usage:
 rem   scripts\pdi.cmd status                        show environment
 rem   scripts\pdi.cmd spoon                         launch Spoon client
 rem   scripts\pdi.cmd pan <trans.ktr> [options]     run a transformation
 rem   scripts\pdi.cmd kitchen <job.kjb> [options]   run a job
+rem IMPORTANT: keep this file ASCII-only. cmd.exe parses .cmd with the OEM
+rem code page (GBK on this machine); non-ASCII comments corrupt parsing.
 rem ============================================================
 setlocal EnableExtensions
 for %%I in ("%~dp0..") do set "PROJECT_ROOT=%%~fI"
@@ -17,7 +19,11 @@ set "JAVA_HOME=%PROJECT_ROOT%\tools\jdk-11"
 set "PENTAHO_JAVA_HOME=%JAVA_HOME%"
 set "PENTAHO_DI_HOME=%PROJECT_ROOT%\tools\pdi-ce-9.4.0.0-343\data-integration"
 set "KETTLE_HOME=%PROJECT_ROOT%\etl\kettle"
-set "PENTAHO_DI_JAVA_OPTIONS=-Xmx4g -Dfile.encoding=UTF-8"
+rem PDI resolves the metastore root via System.getProperty("PENTAHO_METASTORE_FOLDER")
+rem -- a JVM property, NOT an environment variable -- and then appends \metastore.
+rem Default is %USERPROFILE%\.pentaho, outside the workspace and denied by the sandbox.
+set "PENTAHO_METASTORE_DIR=%PROJECT_ROOT%\etl\kettle\.pentaho"
+set "PENTAHO_DI_JAVA_OPTIONS=-Xmx6g -Dfile.encoding=UTF-8 -DPENTAHO_METASTORE_FOLDER=%PENTAHO_METASTORE_DIR%"
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
 set "TOOL=%~1"
@@ -45,6 +51,7 @@ echo JAVA_HOME                 = %JAVA_HOME%
 echo PENTAHO_JAVA_HOME         = %PENTAHO_JAVA_HOME%
 echo PENTAHO_DI_HOME           = %PENTAHO_DI_HOME%
 echo KETTLE_HOME               = %KETTLE_HOME%
+echo PENTAHO_METASTORE_DIR     = %PENTAHO_METASTORE_DIR%
 echo PENTAHO_DI_JAVA_OPTIONS   = %PENTAHO_DI_JAVA_OPTIONS%
 echo.
 echo --- java -version ---

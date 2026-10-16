@@ -62,9 +62,10 @@ E:\ETL_Amazon\
 │   └── pdi-ce-9.4.0.0-343\
 │       └── data-integration\               # Spoon.bat / Pan.bat / Kitchen.bat / lib / plugins
 ├── etl\
-│   └── kettle\                             # KETTLE_HOME
-│       └── .kettle\
-│           └── kettle.properties           # 全局属性（可提交）
+│   ├── kettle\                             # KETTLE_HOME
+│   │   ├── .kettle\kettle.properties       # 全局属性（可提交）
+│   │   └── .pentaho\metastore\             # 元数据存储（-DPENTAHO_METASTORE_FOLDER 重定向）
+│   └── transformations\                    # ETL 作业与转换定义（.ktr / .kjb）
 └── scripts\
     ├── setup_pdi.cmd / setup_pdi.ps1       # 下载 + 解压 + 验证
     └── pdi.cmd                             # 启动器（注入环境）
@@ -106,7 +107,7 @@ Expand-Archive "$env:TEMP\pdi-ce-9.4.0.0-343.zip" -DestinationPath "E:\ETL_Amazo
 | `JAVA_HOME` | 同左 | 供 Pan/Kitchen 及子进程复用 |
 | `PENTAHO_DI_HOME` | `...\pdi-ce-9.4.0.0-343\data-integration` | PDI 安装目录 |
 | `KETTLE_HOME` | `<project>\etl\kettle` | **只填到 `.kettle` 的父目录**（官方要求） |
-| `PENTAHO_DI_JAVA_OPTIONS` | `-Xmx4g -Dfile.encoding=UTF-8` | 堆上限 + **强制 UTF-8** |
+| `PENTAHO_DI_JAVA_OPTIONS` | `-Xmx6g -Dfile.encoding=UTF-8` | 堆上限（16 GB 物理内存的 ~3/8）+ **强制 UTF-8** |
 | `PATH` | 前置 `%JAVA_HOME%\bin` | 使该进程内 `java` = 11 |
 
 **为什么必须加 `-Dfile.encoding=UTF-8`**：Java 11 在中文 Windows 上默认字符集是 GBK，
@@ -163,20 +164,90 @@ PDI 侧用 **"Execute a process"/"Shell"** 步骤调用：
 | 中文乱码 | 缺 `-Dfile.encoding=UTF-8` | 已在 `PENTAHO_DI_JAVA_OPTIONS` 中设置 |
 | 路径含空格导致异常 | 官方已知问题 | 已规避（`E:\ETL_Amazon` 无空格） |
 | `Cannot find Java` | 环境变量未注入 | 必须经 `pdi.cmd` 启动，直接双击不会注入 |
-| 内存不足 | `-Xmx4g` 偏小/偏大 | 按本机物理内存调整（见 §八） |
+| 内存不足 | `-Xmx6g` 偏小/偏大 | 按本机物理内存调整（见 §八） |
 | 找不到数据库驱动 | 驱动未放入 `lib` | 放 JDBC jar 到 `data-integration\lib`（待 P0-3） |
 
 ## 八、待定项（不阻塞安装，但影响后续）
 
-1. **`-Xmx` 取值**：本机物理内存无法通过沙箱探测（WMI 被拒），暂定 4 GB。
-   请运行 `systeminfo | findstr /C:"Total Physical Memory"` 告我内存总量，我再定值。
-   （经验：取物理内存的 1/3 ~ 1/2，且不超过 8 GB。）
+1. **`-Xmx` 取值**：本机物理内存 **16 GB**（已确认）。取 ~3/8 定为 **`-Xmx6g`**，
+   给后续可能并行的 Python / 数据库留出余量；如遇大排序/查找步骤 OOM，可上调至 `-Xmx8g`（上限）。
+   注意：9.3 GB 源文件必须走 **流式**读取，不要整体驻留堆。
 2. **数据库与 JDBC 驱动**（P0-3）：确定后把驱动 jar 放入 `data-integration\lib`，
    并在 `kettle.properties` 启用 `KETTLE_TRANS_LOG_DB` 等执行日志表。
 3. **许可**：CE 9.4 无激活环节；若改用 10.x/11 Developer Edition，需走 Academic Access
    申请并确认 BSL 1.1 的使用条件。
 
-## 九、来源
+## 九、实测验证与踩坑记录（本次安装）
+
+### 9.1 验证结果：PDI 已在 Java 11 上成功执行转换
+
+```
+$ scripts\pdi.cmd pan -file:...\etl\transformations\smoke_test.ktr -level:Basic
+DEBUG: Using PENTAHO_JAVA_HOME
+DEBUG: _PENTAHO_JAVA_HOME=E:\ETL_Amazon\tools\jdk-11
+...
+2026/10/16 08:07:04 - Pan - Kettle 版本9.4.0.0-343, 编译日期 : 2022-11-08 07.50.27
+2026/10/16 08:07:04 - Generate Rows.0 - 完成处理 (I=0, O=0, R=0, W=10, U=0, E=0)
+2026/10/16 08:07:04 - Dummy (do nothing).0 - 完成处理 (I=0, O=0, R=10, W=10, U=0, E=0)
+2026/10/16 08:07:04 - Pan - 完成!
+PAN EXIT = 0
+```
+
+`DEBUG: Using PENTAHO_JAVA_HOME` 是**决定性证据**：PDI 用的是项目内 JDK 11，
+而非系统 Java 25；且 `-Xmx6g`、`-Dfile.encoding=UTF-8`、`-DKETTLE_HOME` 均已注入。
+
+### 9.2 坑 1：metastore 被写到用户主目录（沙箱拒绝）
+
+现象：
+```
+Unable to create XML meta store root folder: C:\Users\<user>\.pentaho\metastore
+org.pentaho.metastore.api.exceptions.MetaStoreException
+```
+
+**定位方法**：用 JDK 自带的 `javap` 反汇编 `kettle-core` 中的 `MetaStoreConst`：
+```cmd
+tools\jdk-11\bin\javap.exe -p -c -cp tools\pdi-ce-9.4.0.0-343\data-integration\lib\kettle-core-9.4.0.0-343.jar org.pentaho.di.metastore.MetaStoreConst
+```
+字节码显示：
+```
+ldc           PENTAHO_METASTORE_FOLDER
+invokestatic  java/lang/System.getProperty      <- 是 getProperty，不是 getenv！
+              getDefaultPentahoMetaStoreLocation() = System.getProperty("user.home") + ".pentaho"
+              new File(<folder>, "metastore")    <- PDI 还会自行追加 metastore
+```
+
+**结论**：`PENTAHO_METASTORE_FOLDER` 是 **JVM 系统属性**，不是环境变量；且 PDI 会在其后追加 `\metastore`。
+正确写法（已落在 `scripts\pdi.cmd`）：
+```
+-DPENTAHO_METASTORE_FOLDER=<project>\etl\kettle\.pentaho
+```
+实际落盘 `<project>\etl\kettle\.pentaho\metastore`。
+
+> 教学点：类文件常量池里出现一个全大写名字，**不代表它是环境变量**。
+> `System.getenv` 与 `System.getProperty` 是两条完全不同的通道，只有反汇编或源码才能确认。
+
+### 9.3 坑 2：访问 GitHub 必须走系统代理
+
+本机 `HKCU\...\Internet Settings`：`ProxyEnable=1`，`ProxyServer=127.0.0.1:7897`。
+
+| 通道 | 实测 |
+|---|---|
+| GitHub 直连 | ❌ 超时 `WinError 10060` / 约 32 KB/s |
+| GitHub 经系统代理 | ✅ 约 0.36 MB/s |
+| 清华 TUNA 镜像直连（JDK） | ✅ 约 1.5 MB/s |
+
+因此 `scripts/fetch_url.py` 把"是否走代理"做成显式开关（`--proxy`）并支持**断点续传**；
+`setup_pdi.ps1` 自动读取注册表代理，并按来源选择通道（GitHub 代理优先、国内镜像直连优先）。
+
+### 9.4 坑 3：PowerShell / cmd 的编码与错误处理
+
+| 现象 | 原因 | 处置 |
+|---|---|---|
+| `.ps1` 报大量语法错误 | PS 5.1 读无 BOM 的 UTF-8 会按 ANSI(GBK) 解析 | `.ps1` 一律存为 **UTF-8 with BOM** |
+| `.cmd` 报 `'xx' is not recognized` | cmd.exe 按 OEM 代码页解析，非 ASCII 注释错位 | `.cmd` **保持纯 ASCII** |
+| 脚本在验证阶段误报失败 | PS 5.1 下原生命令写 stderr 会被 `$ErrorActionPreference='Stop'` 当成终止错误（`java -version` 正常写 stderr） | 局部放宽或捕获输出 |
+
+## 十、来源
 
 - Pentaho 官方文档 · 组件参考（9.3）Java 版本要求 —— https://docs.pentaho.com/install/9.3-install/components-reference/java-virtual-machine
 - Pentaho 官方文档 · 组件参考（10.2 / 11.0）Java 版本要求 —— https://docs.pentaho.com/install/10.2-install/components-reference

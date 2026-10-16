@@ -105,6 +105,7 @@ credentials.json
 /tools/
 
 # --- 9. PDI/Kettle 运行期缓存（保留 kettle.properties 等配置）-------------------
+/etl/kettle/.pentaho/
 /etl/kettle/.kettle/db.cache
 /etl/kettle/.kettle/.spoon
 /etl/kettle/.kettle/shared.xml
