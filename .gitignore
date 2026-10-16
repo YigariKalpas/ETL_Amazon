@@ -116,5 +116,3 @@ credentials.json
 /logs/
 
 # --- 11. 第三方运行时归档（tools 已在第 8 节整目录忽略）---
-*.jar
-!tools/**
