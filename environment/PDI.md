@@ -44,7 +44,9 @@
 学习/开发/测试可用），且**需经授权申请**（学生走 Academic Access Program），
 不再是可自由下载的 CE。
 
-→ 本项目固定使用 **CE 9.4.0.0-343**（最后一个可自由获取的 CE，Apache 许可、无激活环节）。
+→ 本项目固定使用 **CE 9.4.0.0-343**（最后一个可自由获取的 CE，无激活环节）。
+许可已实测核实：安装包 `data-integration\LICENSE.txt` 即 **Apache License 2.0**，
+学术用途无许可障碍（相较之下，10.x/11 的 Developer Edition 受 BSL 1.1 限制）。
 可用镜像：`https://github.com/ambientelivre/legacy-pentaho-ce`（已实测 HTTP 200，367.7 MB）。
 
 ### 3. 路径不能含空格
