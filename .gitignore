@@ -110,3 +110,9 @@ credentials.json
 /etl/kettle/.kettle/.spoon
 /etl/kettle/.kettle/shared.xml
 /etl/kettle/.kettle/logs/
+
+# --- 10. 项目内数据库与日志（体积大、运行期生成）---
+/data/
+/logs/
+
+# --- 11. 第三方运行时归档（tools 已在第 8 节整目录忽略）---
