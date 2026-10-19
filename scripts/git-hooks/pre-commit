@@ -1,0 +1,35 @@
+#!/bin/sh
+# 阻止把运行期数据、第三方运行时与大文件提交进仓库。
+# 安装： scripts\install_git_hooks.cmd  （设置 core.hooksPath=scripts/git-hooks）
+# 调整单文件上限： set PRE_COMMIT_MAX_MB=20
+set -u
+
+LIMIT_MB="${PRE_COMMIT_MAX_MB:-50}"
+fail=0
+
+files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$files" ] && exit 0
+
+for f in $files; do
+  case "$f" in
+    data/*|tools/*|.venv/*|logs/*|movies.txt*|*.zip|*.gz|*.7z|*.tar|*.jar|*.duckdb|*.duckdb.wal|*.sqlite|*.sqlite3|*.db|*.parquet|*.pkl|*.pickle)
+      echo "[pre-commit] 拒绝：受保护路径 -> $f" >&2
+      fail=1
+      continue
+      ;;
+  esac
+  if [ -f "$f" ]; then
+    size=$(wc -c < "$f" 2>/dev/null | tr -d ' ')
+    [ -z "$size" ] && size=0
+    if [ "$size" -gt $((LIMIT_MB * 1024 * 1024)) ]; then
+      echo "[pre-commit] 拒绝：$f 体积 $(($size / 1048576))MB > ${LIMIT_MB}MB" >&2
+      fail=1
+    fi
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "[pre-commit] 提交已被阻止。规则见 environment/Git经验文档.md" >&2
+  exit 1
+fi
+exit 0
