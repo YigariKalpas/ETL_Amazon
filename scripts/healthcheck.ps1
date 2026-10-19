@@ -71,8 +71,11 @@ if (-not $SkipPan) {
         $pdiCmd = Join-Path $ProjectRoot 'scripts\pdi.cmd'
         $panOut = (& $pdiCmd pan ("-file:" + $ktr) -level:Basic 2>&1 | Out-String)
         $panOk = ($panOut -match 'Pan - 完成|Pan - Finished')
-        $verLine = (($panOut -split [Environment]::NewLine) | Where-Object { $_ -match 'Kettle 版本|Kettle version' } | Select-Object -First 1)
-        Add-Check 'PDI' 'Pan 实跑转换' $panOk $(if ($verLine) { $verLine.Trim() } else { '未捕获版本行' })
+        $markLine = (($panOut -split [Environment]::NewLine) | Where-Object { $_ -match 'Kettle 版本|Kettle version|Pan - 完成|Pan - Finished' } | Select-Object -Last 1)
+        $rows = (($panOut -split [Environment]::NewLine) | Where-Object { $_ -match '完成处理|Finished processing' } | Select-Object -First 1)
+        $detail = if ($markLine) { $markLine.Trim() } else { '已执行' }
+        if ($rows) { $detail = $detail + ' | ' + $rows.Trim() }
+        Add-Check 'PDI' 'Pan 实跑转换' $panOk $detail
     } else {
         Add-Check 'PDI' 'Pan 实跑转换' $false '缺少 etl\transformations\smoke_test.ktr'
     }
