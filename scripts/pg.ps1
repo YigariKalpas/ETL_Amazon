@@ -43,7 +43,10 @@ param(
     [switch]$ForceConfirm
 )
 
-$ErrorActionPreference = 'Stop'
+# 注意：本脚本大量调用原生命令（initdb/psql/pg_ctl），它们在 PS 5.1 下会往 stderr 写
+# 正常信息（如 initdb 的 restricted token 警告），若用 'Stop' 会被当成终止错误而中断。
+# 故这里用 'Continue'，关键步骤改为检查 $LASTEXITCODE 并显式 throw。
+$ErrorActionPreference = 'Continue'
 $PSNativeCommandUseErrorActionPreference = $false
 
 if (-not $ProjectRoot) {
@@ -155,6 +158,8 @@ switch ($Action) {
         Start-Sleep -Seconds 3
         Remove-Item -LiteralPath $pgData -Recurse -Force -ErrorAction SilentlyContinue
         & (Join-Path $pgBin 'initdb.exe') -D $pgData -U $SuperUser -E UTF8 --locale=C 2>&1 | ForEach-Object { Write-Host ("  " + $_) }
+        if ($LASTEXITCODE -ne 0) { throw ("initdb 失败，exit=" + $LASTEXITCODE) }
+        if (-not (Test-Path -LiteralPath (Join-Path $pgData 'PG_VERSION'))) { throw 'initdb 后未找到 PG_VERSION' }
         Write-Host '聚类已重建；用 serve 启动后再建库' -ForegroundColor Green
     }
 }
