@@ -83,7 +83,13 @@
 任何 HTTPS 远端操作都报 `git: 'remote-https' is not a git command`。
 于是只能借第三方 GUI 客户端推送——而 GUI 的 pull 默认是 merge，**直接放大了 R5**。
 
-**防范**：修复安装（重装 Git for Windows 完整包，或补回 `mingw64/libexec/git-core/git-remote-*.exe`）；
+**补充证据（同一安装的连带缺陷）**：`E:\Git\usr\bin\sh.exe` 与 `bash.exe` **均缺失**，
+`E:\Git\bin\bash.exe` 只是指向不存在文件的坏 shim。这带来两个后果：
+① **shell 钩子（pre-commit 等）无法 spawn**——见 §四；
+② Git 内部某些依赖 sh 的辅助脚本同样不可用。
+
+**防范**：修复安装（重装 Git for Windows 完整包，补回 `usr/bin/sh.exe`、`bash.exe` 与
+`mingw64/libexec/git-core/git-remote-*.exe`）；
 在修复前，凡涉及远端历史变更的操作，**先确认客户端会走 force 而不是 merge**。
 
 ## 三、正确的操作规范（可直接当检查表）
@@ -106,18 +112,39 @@
    git count-objects -vH               # 对象与体积
    ```
 
-## 四、预防措施：pre-commit 钩子（已随本文档提供）
+## 四、预防措施：守卫脚本（**钩子在本机不可用**）
 
-钩子位置：`scripts/git-hooks/pre-commit`（版本化），安装：
+### 4.1 现状：shell 钩子无法运行
 
-```cmd
-scripts\install_git_hooks.cmd
+本机 Git 残缺（无 `usr/bin/sh.exe`/`bash.exe`），`core.hooksPath` 一旦指向钩子目录，
+**每次提交都会失败**：
+
+```
+error: cannot spawn scripts/git-hooks/pre-commit: No such file or directory
 ```
 
-它会在提交时拦截两类内容：
+实测已把 `core.hooksPath` **解除**，否则你当前的提交全部会被卡住。
+`scripts/git-hooks/pre-commit` 仍保留在仓库中，**待 Git 修复后**用 `scripts\install_git_hooks.cmd` 启用。
 
+### 4.2 当前可用：`scripts\git_guard.cmd`
+
+提交前手动（或接入流程）运行：
+
+```cmd
+scripts\git_guard.cmd
+```
+
+- 退出码 `0` = 通过，`1` = 拦截；
 - **路径规则**：`data/`、`tools/`、`.venv/`、`logs/`、`movies.txt*`、`*.zip/gz/7z/tar/jar`、`*.duckdb/sqlite/db/parquet/pkl`；
-- **体积规则**：单个被暂存文件超过 50 MB（可用环境变量 `PRE_COMMIT_MAX_MB` 调整）。
+- **体积规则**：单个暂存文件超过 50 MB（`-MaxMB` 可调）。
+
+已实测：合法文件放行、`data/` 下文件被拦截。
+
+### 4.3 Git 修复后
+
+1. 重装 Git for Windows 完整包；
+2. `scripts\install_git_hooks.cmd` 启用钩子；
+3. 用 `git push` 验证传输能力（能推说明 `git-remote-*` 已恢复）。
 
 ## 五、当前待办（远端仍需一次强推）
 
