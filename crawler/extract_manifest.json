@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-10-21T02:27:18Z",
+  "purpose": "作业任务1：全量评论抽取的去重 ASIN 清单与记录数核对",
+  "source": {
+    "path": "movies.txt/movies.txt",
+    "size_bytes": 9332887470,
+    "compressed_path": "movies.txt/movies.txt.gz",
+    "compressed_size_bytes": 3321791660,
+    "authority_note": "现有文件经用户认定权威；未计算 SHA-256（按用户决定）"
+  },
+  "extraction": {
+    "script": "crawler/extract_asins.py",
+    "method": "逐行流式扫描，仅匹配 product/productId: 前缀；不加载原文",
+    "lines_read": 71205231,
+    "product_id_lines": 7911684,
+    "distinct_asin": 253059,
+    "invalid_asin": 0,
+    "elapsed_seconds": 48.2,
+    "ran_at": "2026-10-19"
+  },
+  "official_reference": {
+    "reviews": 7911684,
+    "products": 253059,
+    "users": 889176,
+    "timespan": "1997-08 .. 2012-10",
+    "url": "https://snap.stanford.edu/data/web-Movies.html"
+  },
+  "reconciliation": {
+    "product_id_lines_equals_official_reviews": true,
+    "distinct_asin_equals_official_products": true,
+    "conclusion": "读取到的记录数与去重 ASIN 数与 SNAP 官方统计完全一致，可判定源文件完整且解析规则正确。"
+  },
+  "output": {
+    "path": "data/crawler/product_list.csv",
+    "columns": [
+      "asin",
+      "source_url",
+      "first_line"
+    ],
+    "rows": 253059,
+    "size_bytes": 14637830,
+    "sha256": "deb87b2bcb6fa545e921284f847f855934e3b59e9f4e0c0c94dcf70e72327c05",
+    "regenerate_with": ".venv\\Scripts\\python.exe crawler\\extract_asins.py"
+  },
+  "next": {
+    "crawler": "crawler/crawl_product_pages.py",
+    "status_db": "data/crawler/products.sqlite",
+    "snapshots": "data/raw/pages/<ASIN>.html.gz"
+  }
+}
