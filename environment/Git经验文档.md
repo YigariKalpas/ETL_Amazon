@@ -177,3 +177,37 @@ git gc --prune=now
 | 两个提交的差异 | `git diff <a> <b> --name-only` |
 | 本机传输能力 | `git --exec-path` + 检查 `git-remote-*` |
 | 修复"已跟踪但该忽略" | `git rm -r --cached <path>` |
+
+## 七、已验证的推送配方（2026-10 实测跑通）
+
+本机环境有三个叠加障碍，缺一不可：
+
+| 障碍 | 现象 | 解决 |
+|---|---|---|
+| 系统 schannel TLS | `SEC_E_NO_CREDENTIALS` | `-c http.sslBackend=openssl` |
+| 凭据助手弹 GUI | 命令挂起、无输出 | 环境变量 `GCM_GUI_PROMPT=false` + `GCM_INTERACTIVE=never` |
+| HTTP/2 上传卡死 | dry-run 秒过，真实 push 挂起 | `-c http.version=HTTP/1.1` |
+
+**完整可用命令**（在普通终端执行）：
+
+```cmd
+set GIT_TERMINAL_PROMPT=0
+set GCM_INTERACTIVE=never
+set GCM_GUI_PROMPT=false
+
+tools\git\cmd\git.exe ^
+  -c http.sslBackend=openssl ^
+  -c credential.helper=manager ^
+  -c http.version=HTTP/1.1 ^
+  push --no-progress origin develop
+```
+
+实测结果：
+
+```
+9d6b56f..dbadf42  develop -> develop          （普通推送）
++ 8e53054...8776332 main -> main (forced)     （历史重写后强推）
+```
+
+收尾后 `.git` 由 3.69 MB 降至 **0.18 MB**，`git rev-list --objects --all` 中
+`data/pgdata` 对象数为 **0**。
