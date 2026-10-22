@@ -1,0 +1,155 @@
+{
+  "version": "v0.1-draft",
+  "status": "DRAFT — 口径待课程负责人确认，不得作为最终结论",
+  "generated_from": "data/staging/product_pages (n=90 实测快照)",
+  "categories": [
+    "movie",
+    "non_movie",
+    "boxset",
+    "series",
+    "concert",
+    "pending"
+  ],
+  "rule_order_note": "按更具体的信号优先：非电影/演唱会/体育 -> 剧集/合集 -> 电影",
+  "rules": [
+    {
+      "id": "R001",
+      "desc": "面包屑顶级为 CDs & Vinyl => 非电影（音乐类商品）",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "CDs & Vinyl"
+        }
+      ],
+      "then": "non_movie",
+      "strength": "strong",
+      "evidence": "面包屑顶级 = CDs & Vinyl（实测 4 条）"
+    },
+    {
+      "id": "R002",
+      "desc": "面包屑或 Genre 含 Music Videos & Concerts => 演唱会",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Music Videos & Concerts"
+          ]
+        }
+      ],
+      "then": "concert",
+      "strength": "strong",
+      "evidence": "面包屑含 Music Videos & Concerts"
+    },
+    {
+      "id": "R003",
+      "desc": "面包屑叶子为 Sports => 非电影",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "in",
+          "value": [
+            "Sports"
+          ]
+        }
+      ],
+      "then": "non_movie",
+      "strength": "strong",
+      "evidence": "面包屑叶子 = Sports"
+    },
+    {
+      "id": "R004",
+      "desc": "标题含剧集特征 => 剧集",
+      "all": [
+        {
+          "field": "title",
+          "op": "regex",
+          "value": "(Season\\s+\\d+|Complete Series|TV Series|The Complete Season|Volume\\s+\\d+)"
+        }
+      ],
+      "then": "series",
+      "strength": "weak",
+      "evidence": "仅标题关键词，需人工复核"
+    },
+    {
+      "id": "R005",
+      "desc": "标题含合集特征 => 合集",
+      "all": [
+        {
+          "field": "title",
+          "op": "regex",
+          "value": "(Box ?Set|Collection|Trilogy|Anthology|Double Feature)"
+        }
+      ],
+      "then": "boxset",
+      "strength": "weak",
+      "evidence": "仅标题关键词，需人工复核"
+    },
+    {
+      "id": "R006",
+      "desc": "Movies & TV 且面包屑含 DVD 子类 => 电影",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "DVD >"
+          ]
+        }
+      ],
+      "then": "movie",
+      "strength": "strong",
+      "evidence": "面包屑 = Movies & TV > ... > DVD > <子类>"
+    },
+    {
+      "id": "R007",
+      "desc": "面包屑路径为 Movies & TV > Movies => 电影",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Movies & TV > Movies"
+          ]
+        }
+      ],
+      "then": "movie",
+      "strength": "strong",
+      "evidence": "面包屑直接落在 Movies"
+    },
+    {
+      "id": "R008",
+      "desc": "Movies & TV 但只到 Featured Categories => 电影（弱证据）",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Featured Categories"
+        }
+      ],
+      "then": "movie",
+      "strength": "weak",
+      "evidence": "面包屑仅到一级子类，无 DVD/Movies 细分"
+    }
+  ],
+  "open_questions": [
+    "Q1 分类词表：'演唱会或其他'是一类还是两类？是否需要独立 'music' 类？",
+    "Q2 Sports / Special Interest / Documentary 应归 '非电影' 还是 '其他'？纪录片是否算电影？",
+    "Q3 面包屑仅到 'Movies & TV > Featured Categories'（占 34.4%）时，算 movie 还是 pending？",
+    "Q4 标题关键词用于判 series/boxset 是否可接受？还是必须页面结构证据？",
+    "Q5 规则顺序：合集/剧集是否应优先于 movie？",
+    "Q6 无页面（404 / Prime Video 模板页）的产品应归 pending 还是单独 not_classified？",
+    "Q7 '电影识别率' 的分母是全部产品（253,059）还是成功采集的产品？"
+  ]
+}
