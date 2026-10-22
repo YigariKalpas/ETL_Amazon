@@ -1,0 +1,182 @@
+{
+  "version": "v0.2",
+  "status": "按 docs/作业说明 条文裁定后执行（Q3 弱证据口径仍待确认）",
+  "basis": "design/产品分类口径_裁定.md",
+  "categories": [
+    "movie",
+    "non_movie",
+    "boxset",
+    "series",
+    "concert_or_other",
+    "pending"
+  ],
+  "rules": [
+    {
+      "id": "R001",
+      "desc": "面包屑顶级 CDs & Vinyl => 非电影（音乐 CD，非影视内容）",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "CDs & Vinyl"
+        }
+      ],
+      "then": "non_movie",
+      "strength": "strong",
+      "evidence": "面包屑顶级"
+    },
+    {
+      "id": "R002",
+      "desc": "面包屑含 Music Videos & Concerts => 演唱会或其他",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Music Videos & Concerts"
+          ]
+        }
+      ],
+      "then": "concert_or_other",
+      "strength": "strong",
+      "evidence": "面包屑含 Music Videos & Concerts"
+    },
+    {
+      "id": "R003",
+      "desc": "面包屑叶子 Sports => 演唱会或其他（影视但非电影）",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Sports"
+        }
+      ],
+      "then": "concert_or_other",
+      "strength": "weak",
+      "evidence": "Q2 裁定：非创作作品"
+    },
+    {
+      "id": "R004",
+      "desc": "面包屑叶子 Special Interest => 演唱会或其他",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Special Interest"
+        }
+      ],
+      "then": "concert_or_other",
+      "strength": "weak",
+      "evidence": "Q2 裁定：非创作作品"
+    },
+    {
+      "id": "R006",
+      "desc": "Movies & TV 且含 DVD 题材子类 => 电影",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "DVD >"
+          ]
+        }
+      ],
+      "then": "movie",
+      "strength": "strong",
+      "evidence": "面包屑到题材子类"
+    },
+    {
+      "id": "R007",
+      "desc": "面包屑落在 Movies & TV > Movies => 电影",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Movies & TV > Movies"
+          ]
+        }
+      ],
+      "then": "movie",
+      "strength": "strong",
+      "evidence": "面包屑直接落在 Movies"
+    },
+    {
+      "id": "R005",
+      "desc": "行业题材为 Documentary/Bollywood/Anime 等创作体裁 => 电影",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "in",
+          "value": [
+            "Documentary",
+            "Bollywood",
+            "Anime",
+            "Foreign Films"
+          ]
+        }
+      ],
+      "then": "movie",
+      "strength": "weak",
+      "evidence": "Q2 裁定：创作作品"
+    },
+    {
+      "id": "R008",
+      "desc": "Movies & TV 但只到 Featured Categories => 电影（弱证据，Q3 待定）",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Featured Categories"
+        }
+      ],
+      "then": "movie",
+      "strength": "weak",
+      "evidence": "面包屑仅到一级子类（Q3）"
+    }
+  ],
+  "flag_rules": [
+    {
+      "id": "F01",
+      "desc": "标题含剧集线索（证据不足，仅标记）",
+      "all": [
+        {
+          "field": "title",
+          "op": "regex",
+          "value": "(Season\\s+\\d+|Complete Series|TV Series|The Complete Season|Volume\\s+\\d+)"
+        }
+      ]
+    },
+    {
+      "id": "F02",
+      "desc": "标题含合集线索（证据不足，仅标记）",
+      "all": [
+        {
+          "field": "title",
+          "op": "regex",
+          "value": "(Box ?Set|Collection|Trilogy|Anthology|Double Feature)"
+        }
+      ]
+    },
+    {
+      "id": "F03",
+      "desc": "无面包屑",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "empty"
+        }
+      ]
+    }
+  ]
+}

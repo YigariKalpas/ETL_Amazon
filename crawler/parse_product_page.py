@@ -34,6 +34,11 @@ RE_TR = re.compile(r"<tr[^>]*>\s*<t[hd][^>]*>(.*?)</t[hd]>\s*<td[^>]*>(.*?)</td>
 RE_LI_BLOCK = re.compile(r'id="detailBullets_feature_div"(.*?)</div>\s*</div>', re.S | re.I)
 RE_LI = re.compile(r"<li[^>]*>(.*?)</li>", re.S | re.I)
 RE_REVIEWS = re.compile(r'id="acrCustomerReviewText"[^>]*>(.*?)</span>', re.S | re.I)
+# 【补充】byline_info 里含 "Name (Actor) / Name (Director)"；多为截断显示（& N more）
+RE_PERSON = re.compile(
+    r"([A-Z][^,()]{1,60}?)\s*\((Actor|Actress|Director|Producer|Writer|Host|Narrator)\)", re.I
+)
+RE_MORE = re.compile(r"&\s*(\d+)\s*more", re.I)
 RE_RATING = re.compile(r'<span[^>]*class="a-icon-alt"[^>]*>(.*?)</span>', re.S | re.I)
 
 # 标题里的版本/载体后缀：必须剥离才能做匹配，但原始标题必须保留
@@ -101,6 +106,15 @@ def parse_detail(txt: str) -> dict:
     return out
 
 
+def parse_people(byline: str):
+    """从 byline_info 抽取演职员。注意：页面多为截断显示，需记录隐藏人数。"""
+    people = []
+    for name, role in RE_PERSON.findall(byline or ""):
+        people.append({"name_raw": name.strip(), "role": role.lower(), "source": "bylineInfo"})
+    m = RE_MORE.search(byline or "")
+    return people, (int(m.group(1)) if m else 0)
+
+
 def parse_snapshot(path: str, asin: str) -> dict:
     with gzip.open(path, "rb") as fh:
         raw = fh.read()
@@ -133,6 +147,8 @@ def parse_snapshot(path: str, asin: str) -> dict:
         "product_release_date_raw": detail.get("release date"),
         "studio": detail.get("studio"),
         "actors_raw": detail.get("actors"),
+        "people_raw": parse_people(byline)[0],
+        "byline_truncated_more": parse_people(byline)[1],
         "genre_labels_raw": [detail.get("genre")] if detail.get("genre") else [],
         "media_format": detail.get("media format") or detail.get("format"),
         "language": detail.get("language"),
