@@ -34,7 +34,12 @@ COVERAGE_FIELDS = [
     "runtime_minutes", "discs", "mpaa_rating",
 ]
 
-RE_SERIES = re.compile(r"(Season\s+\d+|Complete Series|TV Series|The Complete Season|Volume\s+\d+|Episodes?\b)", re.I)
+# 分集标记：补充 Vol./V./ep. 等实际出现在页面标题中的缩写形式
+RE_SERIES = re.compile(
+    r"(Season\s+\d+|Complete Series|TV Series|The Complete Season|Volume\s+\d+"
+    r"|Vol\.?\s*\d+|\bV\.\s*\d+|ep\.?\s*\d+|Episodes?\b)",
+    re.I,
+)
 RE_BOXSET = re.compile(r"(Box ?Set|Collection|Trilogy|Anthology|Double Feature)", re.I)
 
 
@@ -124,7 +129,7 @@ def main(argv=None) -> int:
                          "review_required": "true", "rule_id": "", "strength": "none",
                          "collection_status": info["status"], "collection_note": info["note"],
                          "breadcrumb_top": "", "breadcrumb_leaf": "", "genre": "",
-                         "media_format": "", "runtime_minutes": "", "title": ""})
+                         "media_format": "", "runtime_minutes": "", "discs": "", "title": ""})
             continue
         feat = features(rec)
         primary, labels, review, rid, strength = classify(feat, rules)
@@ -137,6 +142,7 @@ def main(argv=None) -> int:
             "breadcrumb_leaf": feat["breadcrumb_leaf"] or "",
             "genre": feat["genre"], "media_format": feat["media_format"] or "",
             "runtime_minutes": feat["runtime_minutes"] if feat["runtime_minutes"] is not None else "",
+            "discs": feat["discs"] if feat["discs"] is not None else "",
             "title": feat["title"] or "",
         })
 
@@ -152,8 +158,9 @@ def main(argv=None) -> int:
     review_n = sum(1 for r in rows if r["review_required"] == "true")
     by_coll = collections.Counter(r["collection_status"] for r in rows)
 
-    # 已识别作品 = movie + movie_weak（待确认口径 Q3 已定：movie_weak 单列但仍属"已识别"）
+    # C4 裁定：movie_weak 计入"已识别作品"（作覆盖率分母），但不计入"真实 movie"
     identified_asins = [r["asin"] for r in rows if r["classification"] in ("movie", "movie_weak")]
+    true_movie_asins = [r["asin"] for r in rows if r["classification"] == "movie"]
     cov = {}
     for f in COVERAGE_FIELDS:
         n = sum(1 for a in identified_asins if records.get(a, {}).get(f))
@@ -174,10 +181,12 @@ def main(argv=None) -> int:
         "review_required": review_n,
         "by_collection_status": dict(by_coll),
         "identification": {
-            "identified_works": len(identified_asins),
+            "identified_including_weak": len(identified_asins),
+            "true_movie_only": len(true_movie_asins),
             "denominator": total,
-            "rate_percent": round(100.0 * len(identified_asins) / total, 4) if total else None,
-            "note": "Q7：分母 = 全部产品",
+            "rate_identified_percent": round(100.0 * len(identified_asins) / total, 4) if total else None,
+            "rate_true_movie_percent": round(100.0 * len(true_movie_asins) / total, 4) if total else None,
+            "note": "C4：movie_weak 计入已识别（覆盖率分母），但不计入真实 movie；Q7 分母=全部产品",
         },
         "field_coverage_of_identified_works": cov,
     }
