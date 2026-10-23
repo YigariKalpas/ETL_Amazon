@@ -1,0 +1,348 @@
+{
+  "version": "v0.4",
+  "status": "按负责人第二轮裁定（C1/C2/C3/C5）更新；本次未运行，仅更新配置",
+  "basis": "design/产品分类规则_v0.3.json + 负责人对 C1/C2/C3/C5 的答复",
+  "categories": [
+    "movie",
+    "movie_weak",
+    "non_movie",
+    "boxset",
+    "series",
+    "concert",
+    "other",
+    "music",
+    "anime",
+    "sport",
+    "pending",
+    "no_page"
+  ],
+  "category_notes": {
+    "music": "Q1 新增：CDs & Vinyl 下的音乐类商品",
+    "concert": "Q1：演唱会单列",
+    "other": "Q1：其他（非电影、非音乐、非演唱会）",
+    "anime": "C1/C3 确认：多卷（Vol./V./ep.）算分集，因此多卷动画归 anime，不算 movie",
+    "movie_weak": "Q3：单列弱证据电影，尽量减少进入 pending",
+    "no_page": "Q6：无可用页面，单列待人工处理",
+    "sport": "C2 新增：独立 sport 类；genre 缺失时按标题判断，标题不可分析则归 other"
+  },
+  "rules": [
+    {
+      "id": "R001",
+      "desc": "CDs & Vinyl => music",
+      "strength": "strong",
+      "then": "music",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "CDs & Vinyl"
+        }
+      ]
+    },
+    {
+      "id": "R002",
+      "desc": "Music Videos & Concerts => concert",
+      "strength": "strong",
+      "then": "concert",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Music Videos & Concerts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R003a",
+      "desc": "genre 含 Sports => sport",
+      "strength": "strong",
+      "then": "sport",
+      "all": [
+        {
+          "field": "genre",
+          "op": "contains_any",
+          "value": [
+            "Sports"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R003b",
+      "desc": "genre 缺失但标题可识别为体育 => sport",
+      "strength": "weak",
+      "then": "sport",
+      "all": [
+        {
+          "field": "genre",
+          "op": "empty"
+        },
+        {
+          "field": "title",
+          "op": "regex",
+          "value": "(NBA|NFL|MLB|NHL|UFC|Olympics?|Basketball|Baseball|Football|Boxing|Wrestling|Sports?)"
+        }
+      ]
+    },
+    {
+      "id": "R003c",
+      "desc": "面包屑为 Sports 但 genre 缺失且标题不可分析 => other",
+      "strength": "weak",
+      "then": "other",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Sports"
+        }
+      ]
+    },
+    {
+      "id": "R004",
+      "desc": "Special Interest => pending",
+      "strength": "none",
+      "then": "pending",
+      "all": [
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Special Interest"
+        }
+      ]
+    },
+    {
+      "id": "R006a",
+      "desc": "Anime 且非分集且片长>=45min => movie",
+      "strength": "weak",
+      "then": "movie",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Anime"
+          ]
+        },
+        {
+          "field": "title_has_series_hint",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "field": "runtime_minutes",
+          "op": "gte",
+          "value": 45
+        }
+      ]
+    },
+    {
+      "id": "R006b",
+      "desc": "Anime 其他 => anime",
+      "strength": "weak",
+      "then": "anime",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Anime"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R005a",
+      "desc": "Documentary 且分集 => series",
+      "strength": "weak",
+      "then": "series",
+      "all": [
+        {
+          "field": "genre",
+          "op": "contains_any",
+          "value": [
+            "Documentary"
+          ]
+        },
+        {
+          "field": "title_has_series_hint",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "R005b",
+      "desc": "Documentary 非分集 => movie",
+      "strength": "weak",
+      "then": "movie",
+      "all": [
+        {
+          "field": "genre",
+          "op": "contains_any",
+          "value": [
+            "Documentary"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R008",
+      "desc": "标题含合集线索且属 Movies & TV => boxset（同时保留 movie 标签）",
+      "strength": "weak",
+      "then": "boxset",
+      "also": [
+        "movie"
+      ],
+      "all": [
+        {
+          "field": "title_has_boxset_hint",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        }
+      ]
+    },
+    {
+      "id": "R007",
+      "desc": "标题含剧集线索 => series（须人工复核）",
+      "strength": "weak",
+      "then": "series",
+      "all": [
+        {
+          "field": "title_has_series_hint",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "R009",
+      "desc": "Movies & TV 且含 DVD 题材子类 => movie",
+      "strength": "strong",
+      "then": "movie",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "DVD >"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R010",
+      "desc": "Movies & TV > Movies => movie",
+      "strength": "strong",
+      "then": "movie",
+      "all": [
+        {
+          "field": "breadcrumb_path",
+          "op": "contains_any",
+          "value": [
+            "Movies & TV > Movies"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R011",
+      "desc": "Movies & TV 仅到 Featured Categories => movie_weak（Q3）",
+      "strength": "weak",
+      "then": "movie_weak",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "Featured Categories"
+        }
+      ]
+    },
+    {
+      "id": "R012",
+      "desc": "Movies & TV 且叶子为 Blu-ray/DVD/VHS => movie_weak",
+      "strength": "weak",
+      "then": "movie_weak",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "in",
+          "value": [
+            "Blu-ray",
+            "DVD",
+            "VHS"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R013",
+      "desc": "Movies & TV 且叶子为 TV => series",
+      "strength": "weak",
+      "then": "series",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "eq",
+          "value": "TV"
+        }
+      ]
+    },
+    {
+      "id": "R014",
+      "desc": "Movies & TV 且叶子为电影题材 => movie（弱证据）",
+      "strength": "weak",
+      "then": "movie",
+      "all": [
+        {
+          "field": "breadcrumb_top",
+          "op": "eq",
+          "value": "Movies & TV"
+        },
+        {
+          "field": "breadcrumb_leaf",
+          "op": "in",
+          "value": [
+            "Drama",
+            "Action & Adventure",
+            "Mystery & Thrillers",
+            "Comedy",
+            "Horror",
+            "Science Fiction",
+            "Animation",
+            "Kids & Family",
+            "Foreign Films",
+            "Bollywood"
+          ]
+        }
+      ]
+    }
+  ],
+  "review_policy": "C5 选 D：review_required 仅对 no_page 置真；弱证据不强制复核"
+}
