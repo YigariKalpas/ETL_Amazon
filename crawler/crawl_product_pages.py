@@ -22,6 +22,7 @@ import hashlib
 import os
 import random
 import re
+import shutil
 import socket
 import sqlite3
 import sys
@@ -225,10 +226,19 @@ def fetch_once(url: str, asin: str, timeout: int, proxy: str | None):
     return status, code, final_url, body, note
 
 
+def page_bucket(asin: str) -> str:
+    """【KEY-12a】分桶：sha1(ASIN)[:2]，避免 25 万个文件挤在同一目录。"""
+    return hashlib.sha1(asin.encode("utf-8")).hexdigest()[:2]
+
+
+def snapshot_path_for(pages_dir: str, asin: str) -> str:
+    return os.path.join(pages_dir, page_bucket(asin), asin + ".html.gz")
+
+
 def save_snapshot(pages_dir: str, asin: str, body: bytes) -> tuple[str, str, int]:
-    """【KEY-12】原始响应 gzip 落盘 + SHA-256。"""
-    os.makedirs(pages_dir, exist_ok=True)
-    path = os.path.join(pages_dir, asin + ".html.gz")
+    """【KEY-12】原始响应 gzip 落盘（分桶）+ SHA-256。"""
+    path = snapshot_path_for(pages_dir, asin)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with gzip.open(path, "wb", compresslevel=6) as fh:
         fh.write(body)
     return os.path.abspath(path), hashlib.sha256(body).hexdigest(), len(body)
@@ -336,6 +346,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--proxy", default="", help="自有代理地址；不得用于规避访问限制")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--ignore-robots", action="store_true", help="【不合规】仅调试")
+    ap.add_argument("--min-free-gb", type=float, default=20.0, help="磁盘可用低于此值即停止")
+    ap.add_argument("--chunk", type=int, default=200, help="每批提交数（批间检查水位与停止标记）")
+    ap.add_argument("--stop-file", default=r"E:\ETL_Amazon\data\crawler\STOP", help="存在即停止")
     args = ap.parse_args(argv)
 
     if args.concurrency < 1:
@@ -380,13 +393,39 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     ok = 0
+    processed = 0
     t0 = time.time()
-    with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-        futures = [pool.submit(process_one, a, ctx) for a in pending]
-        for fut in as_completed(futures):
-            row = fut.result()
-            if row["status"] == ST_SUCCESS:
-                ok += 1
+
+    def should_stop():
+        """【KEY-18】批次间断点：外部停止标记 + 磁盘水位。"""
+        if os.path.isfile(args.stop_file):
+            return "stop_file"
+        try:
+            free_gb = shutil.disk_usage(args.pages_dir).free / (1024 ** 3)
+        except Exception:
+            return ""
+        return ("low_disk:%.1fGB" % free_gb) if free_gb < args.min_free_gb else ""
+
+    chunk = max(1, int(args.chunk))
+    for start in range(0, len(pending), chunk):
+        reason = should_stop()
+        if reason:
+            print("STOPPED: " + reason)
+            break
+        batch = pending[start:start + chunk]
+        with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+            futures = [pool.submit(process_one, a, ctx) for a in batch]
+            for fut in as_completed(futures):
+                row = fut.result()
+                processed += 1
+                if row["status"] == ST_SUCCESS:
+                    ok += 1
+        try:
+            free_gb = shutil.disk_usage(args.pages_dir).free / (1024 ** 3)
+        except Exception:
+            free_gb = -1
+        print("progress: %d/%d (%.1f%%)  free=%.1fGB" % (
+            processed, len(pending), 100.0 * processed / max(len(pending), 1), free_gb))
 
     by_status: dict[str, int] = {}
     for r in conn.execute("SELECT status, COUNT(*) FROM product_page GROUP BY status"):
