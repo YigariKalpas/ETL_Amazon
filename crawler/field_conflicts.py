@@ -23,8 +23,10 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 
 ROOT = r"E:\ETL_Amazon"
 LINEAGE = os.path.join(ROOT, "data", "staging", "lineage", "field_selection.csv")
@@ -75,7 +77,65 @@ def main(argv=None) -> int:
         else:
             selections.append(["movie", movie_id, "release_year", "", 1,
                                "无可信来源；页面 Release date 属商品发售日", RULE_VERSION, "missing"])
-    # 3) 冲突检测（当前每种字段只有单一来源，留出机制）
+    # 3) 真实冲突检测（可复核，不编造）：
+    #    a. 标题内年份 > 最早评论年份 → 评论早于作品年份，冲突
+    #    b. 商品发售年 > 最早评论年 → 评论早于发售，可能是预售/再版，标 candidate
+    import sqlite3
+    db_path = os.path.join(ROOT, "data", "target", "target.db")
+    title_year = {}
+
+    def y_of(epoch):
+        return datetime.fromtimestamp(epoch, tz=timezone.utc).year if epoch else None
+
+    if os.path.isfile(db_path):
+        conn = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
+        for mid, title in conn.execute("SELECT movie_id, canonical_title FROM movie"):
+            m = re.search(r"(19\d{2}|20\d{2})", title or "")
+            if m:
+                title_year[mid] = int(m.group(1))
+        for mid, t in conn.execute(
+                "SELECT e.movie_id, MIN(r.review_time_epoch) FROM review r "
+                "JOIN product_edition e ON e.product_id=r.product_id GROUP BY e.movie_id"):
+            if not t:
+                continue
+            ty = title_year.get(mid)
+            ry = y_of(int(t))
+            if ty and ry and ry < ty:
+                conflicts.append(["movie", mid, "release_year",
+                                  "title_year=%d earliest_review_year=%d" % (ty, ry),
+                                  "conflict", RULE_VERSION])
+        for pid, pdate, t in conn.execute(
+                "SELECT e.product_id, e.product_release_date, MIN(r.review_time_epoch) "
+                "FROM product_edition e JOIN review r ON r.product_id=e.product_id "
+                "WHERE e.product_release_date IS NOT NULL "
+                "GROUP BY e.product_id, e.product_release_date"):
+            if not t:
+                continue
+            m = re.search(r"(19\\d{2}|20\\d{2})", pdate or "")
+            if not m:
+                continue
+            py = int(m.group(1))
+            ry = y_of(int(t))
+            if ry and ry < py:
+                conflicts.append(["product", pid, "product_release_date",
+                                  "product_release_year=%d earliest_review_year=%d" % (py, ry),
+                                  "candidate", RULE_VERSION])
+        # c. 同一作品不同版本的发售年差异 > 3 年 → 再版候选（用于说明 edition 语义）
+        for mid, dates in conn.execute(
+                "SELECT movie_id, GROUP_CONCAT(product_release_date, '|') "
+                "FROM product_edition WHERE product_release_date IS NOT NULL "
+                "AND product_release_date <> '' GROUP BY movie_id"):
+            years = [int(x) for x in re.findall(r"(19\d{2}|20\d{2})", dates or "")]
+            if len(years) >= 2 and max(years) - min(years) > 3:
+                conflicts.append(["movie", mid, "edition_release_dates",
+                                  "years=%s" % ",".join(str(y) for y in sorted(set(years))),
+                                  "candidate", RULE_VERSION])
+        conn.close()
+
+    print("real_conflicts   = %d" % len(conflicts))
+
+    # 3c) 旧的单一来源检测（保留机制）
+    # 3c) 旧的单一来源检测（保留机制）
     by_field = defaultdict(list)
     for movie_id, r in release.items():
         if r["status"] == "verified" and r["value_year"]:

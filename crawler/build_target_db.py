@@ -177,6 +177,14 @@ def main(argv=None) -> int:
                        "%s; score=%s; time=%s; helpful=%s" % (r.get("reasons", ""), r.get("score_raw", ""),
                                                               r.get("time_raw", ""), r.get("helpfulness_raw", "")),
                        "rejects.csv", run_id))
+    # 【KEY-84】任务7 的冲突/候选也进质量表，便于统一查询与统计
+    conflict_csv = os.path.join(ROOT, "data", "staging", "conflicts", "conflicts.csv")
+    for r in read_csv(conflict_csv):
+        issues.append((rid("QI", "conflict", r.get("entity_id", ""), r.get("field_name", "")),
+                       r.get("entity_type", ""), r.get("entity_id", ""),
+                       "source_conflict_" + (r.get("status") or "candidate"),
+                       "%s | %s" % (r.get("field_name", ""), r.get("detail", "")),
+                       "conflicts.csv", run_id))
     conn.executemany("INSERT OR REPLACE INTO quality_issue(issue_id,entity_type,entity_id,issue_type,"
                      "detail,source,run_id) VALUES(?,?,?,?,?,?,?)", issues)
     stats["quality_issue"] = len(issues)

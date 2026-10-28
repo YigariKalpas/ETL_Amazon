@@ -106,6 +106,36 @@ def main(argv=None) -> int:
         ])
         counter["movie.canonical_title"] += 1
 
+    # ---------- 评论级断言（任务9：原始评论可定位到分片+记录号） ----------
+    review_assertions = 0
+    db_path = os.path.join(ROOT, "data", "target", "target.db")
+    if os.path.isfile(db_path):
+        import hashlib
+        import sqlite3
+        conn = sqlite3.connect("file:%s?mode=ro" % db_path, uri=True)
+        cur = conn.execute(
+            "SELECT review_id, product_id, score, review_time_epoch, review_time_iso, "
+            "helpful_num, helpful_den, summary, text, record_index, part_file FROM review")
+        for (rid_, pid, score, tepoch, tiso, hn, hd, summary, text, ridx, part) in cur:
+            loc = "%s#record=%s" % (part or "?", ridx)
+            if score is not None:
+                assertions.append(["FA-%s-score" % rid_, "review", rid_, "score",
+                                   str(score), str(score), pid, loc,
+                                   "extract_reviews/v1", "GO-BUILD", 1.0, tiso or ""])
+            if tepoch is not None:
+                assertions.append(["FA-%s-review_time" % rid_, "review", rid_,
+                                   "review_time_epoch", str(tepoch), tiso or "", pid, loc,
+                                   "extract_reviews/v1", "GO-BUILD", 1.0, tiso or ""])
+            if text:
+                digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+                assertions.append(["FA-%s-text" % rid_, "review", rid_, "text",
+                                   "sha256:%s;len=%d" % (digest, len(text)),
+                                   text[:100], pid, loc, "extract_reviews/v1",
+                                   "GO-BUILD", 1.0, tiso or ""])
+                review_assertions += 1
+        conn.close()
+    print("review_assertions = %d" % review_assertions)
+
     # 电影级选择
     selections = []
     for movie_id in sorted(movie_src):
