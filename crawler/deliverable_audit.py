@@ -68,6 +68,8 @@ def main() -> int:
          "有" if (exists("etl/**/*.kjb") or exists("etl/**/*.ktr") and glob.glob(os.path.join(ROOT, "etl", "jobs", "*.kjb"))) else "缺"),
         ("分类覆盖率报告", "双分母（已识别作品 / 全部产品）",
          "有" if os.path.isfile(CLS_SUM) else "缺"),
+        ("覆盖率报告", "design/覆盖率报告.md（双分母）",
+         "有" if os.path.isfile(os.path.join(ROOT, "design", "覆盖率报告.md")) else "缺"),
         ("冲突案例", "任务7 要求保留冲突状态与候选值",
          "有(%d)" % conflict_rows if conflict_rows else "缺(0 条)"),
         ("评论级字段血缘", "任务9 要求原始评论可定位到分片+记录号",
