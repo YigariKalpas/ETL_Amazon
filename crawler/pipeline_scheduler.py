@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 ROOT = r"E:\ETL_Amazon"
 PDI = os.path.join(ROOT, "scripts", "pdi.cmd")
 JOB = os.path.join(ROOT, "etl", "jobs", "j_etl_pipeline.kjb")
+DASHBOARD = os.path.join(ROOT, "crawler", "build_dashboard.py")
 STOP = os.path.join(ROOT, "data", "crawler", "STOP")
 LOCK = os.path.join(ROOT, "data", "crawler", "scheduler.lock")
 HISTORY = os.path.join(ROOT, "data", "staging", "schedule_history.csv")
@@ -79,6 +80,14 @@ def run_once(seq: int) -> tuple:
             cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
     dur = time.time() - started
     log("run %d end rc=%d %.1fs log=%s" % (seq, rc, dur, os.path.basename(out)))
+    # 【KEY-88】每轮结束后刷新控制台，打开页面即可看到最新全链路状态
+    try:
+        subprocess.call([os.path.join(ROOT, ".venv", "Scripts", "python.exe"),
+                         DASHBOARD], cwd=ROOT,
+                        stdout=open(os.path.join(LOGDIR, "dashboard.log"), "a", encoding="utf-8"),
+                        stderr=subprocess.STDOUT)
+    except OSError:
+        pass
     os.makedirs(os.path.dirname(HISTORY), exist_ok=True)
     new = not os.path.isfile(HISTORY)
     with io.open(HISTORY, "a", encoding="utf-8", newline="") as fh:
