@@ -114,7 +114,9 @@ def main(argv=None) -> int:
                 "PGUSER": args.user, "PGDATABASE": args.db,
                 "PGCLIENTENCODING": "UTF8",
                 # 【KEY-76】防止 COPY 无限等锁：锁超时 15s、语句超时 10min
-                "PGOPTIONS": "-c statement_timeout=600000 -c lock_timeout=15000"})
+                # 【KEY-87】沙箱内并行 gather worker 起不来，会让 COUNT 卡死，必须关掉
+                "PGOPTIONS": "-c statement_timeout=600000 -c lock_timeout=15000 "
+                             "-c max_parallel_workers_per_gather=0"})
     base = [args.psql, "-v", "ON_ERROR_STOP=1", "-q"]
 
     # 【KEY-77】装载前清掉本库残留后端（被中断的 COPY 可能还占着锁）

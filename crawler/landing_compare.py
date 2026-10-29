@@ -83,7 +83,7 @@ def main():
         env = dict(os.environ)
         env.update({"PGHOST": "127.0.0.1", "PGPORT": "5432", "PGUSER": "etl",
                     "PGDATABASE": "etl_amazon",
-                    "PGOPTIONS": "-c statement_timeout=15000"})
+                    "PGOPTIONS": "-c statement_timeout=30000 -c max_parallel_workers_per_gather=0"})
         q = ("SELECT 'source_record', COUNT(*) FROM source_record UNION ALL "
              "SELECT 'movie', COUNT(*) FROM movie UNION ALL "
              "SELECT 'review', COUNT(*) FROM review")

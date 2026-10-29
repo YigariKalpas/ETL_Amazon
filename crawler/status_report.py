@@ -78,7 +78,7 @@ def pg_state() -> dict:
     env.update({"PGHOST": "127.0.0.1", "PGPORT": "5432", "PGUSER": "etl",
                 "PGDATABASE": "etl_amazon", "PGCLIENTENCODING": "UTF8",
                 # 【KEY-73】避免客户端超时后后端查询继续挂着，把后续查询堵住
-                "PGOPTIONS": "-c statement_timeout=20000"})
+                "PGOPTIONS": "-c statement_timeout=20000 -c max_parallel_workers_per_gather=0"})
     q = " UNION ALL ".join(["SELECT '%s', COUNT(*) FROM %s" % (t, t) for t in PG_TABLES])
     try:
         r = subprocess.run([PSQL, "-t", "-A", "-F", "|", "-c", q], env=env,
