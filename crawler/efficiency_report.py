@@ -142,6 +142,29 @@ def main(argv=None) -> int:
         if avg_per_hour > 0:
             print("  按此速度需        = %.0f 小时 = %.1f 天" % (
                 left / avg_per_hour, left / avg_per_hour / 24.0))
+        else:
+            avg_per_hour = 0.0
+    else:
+        avg_per_hour = 0.0
+
+    # 【KEY-91】同时落一份 JSON，便于控制台/报告引用，避免控制台编码问题
+    import io as _io
+    import json as _json
+    summary = {
+        "runs": len(runs),
+        "requests": tot_done, "success": tot_ok, "validation": tot_val,
+        "success_rate": round(100.0 * tot_ok / max(1, tot_done), 1),
+        "validation_rate": round(100.0 * tot_val / max(1, tot_done), 1),
+        "requests_per_success": round(float(tot_done) / max(1, tot_ok), 2),
+        "rows": rows, "by_status": counts,
+        "hourly": [{"hour": h, "requests": n, "success": s or 0} for h, s, n in hourly],
+        "avg_success_per_hour": round(avg_per_hour, 1),
+        "remaining": left,
+    }
+    out = os.path.join(ROOT, "data", "staging", "efficiency.json")
+    with _io.open(out, "w", encoding="utf-8") as fh:
+        _json.dump(summary, fh, ensure_ascii=False, indent=2)
+    print("json = %s" % out)
     return 0
 
 
