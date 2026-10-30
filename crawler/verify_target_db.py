@@ -25,8 +25,12 @@ CHECKS = [
      "SELECT COUNT(*) FROM product_movie pm LEFT JOIN product_edition e ON pm.product_id=e.product_id WHERE e.product_id IS NULL"),
     ("review 的 product_id 必须是已采集成功页",
      "SELECT COUNT(*) FROM review r LEFT JOIN source_record s ON r.product_id=s.source_record_id WHERE s.source_record_id IS NULL OR s.status<>'success'"),
-    ("review 的 helpful_num 不得大于 helpful_den",
-     "SELECT COUNT(*) FROM review WHERE helpful_num IS NOT NULL AND helpful_den IS NOT NULL AND helpful_num > helpful_den"),
+    # 【KEY-89】helpful 异常不要求为 0（原始数据确实存在），但必须在 quality_issue 登记留痕
+    ("review 的 helpful 异常必须已登记到 quality_issue",
+     "SELECT COUNT(*) FROM review r WHERE r.helpful_num IS NOT NULL AND r.helpful_den IS NOT NULL "
+     "AND r.helpful_num > r.helpful_den AND NOT EXISTS (SELECT 1 FROM quality_issue q "
+     "WHERE q.entity_id = r.review_id AND q.issue_type IN ('helpfulness_invalid',"
+     "'review_helpfulness_invalid'))"),
     ("review 的 helpful 票数不得为负",
      "SELECT COUNT(*) FROM review WHERE helpful_num < 0 OR helpful_den < 0"),
     ("review 的评分必须在 1..5 或为空",

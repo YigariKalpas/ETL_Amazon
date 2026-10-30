@@ -177,6 +177,13 @@ def main(argv=None) -> int:
                        "%s; score=%s; time=%s; helpful=%s" % (r.get("reasons", ""), r.get("score_raw", ""),
                                                               r.get("time_raw", ""), r.get("helpfulness_raw", "")),
                        "rejects.csv", run_id))
+    # 【KEY-90】任务8 检出的 helpful/评分异常也登记，保证"异常必须可追溯"
+    for r in read_csv(os.path.join(ROOT, "data", "staging", "dedup", "quality_issues.csv")):
+        issues.append((rid("QI", "dedup", r.get("entity_id", ""), r.get("issue_type", "")),
+                       r.get("entity_type", "review"), r.get("entity_id", ""),
+                       r.get("issue_type", "review_field_invalid"),
+                       r.get("detail", ""), "dedup/quality_issues.csv", run_id))
+
     # 【KEY-84】任务7 的冲突/候选也进质量表，便于统一查询与统计
     conflict_csv = os.path.join(ROOT, "data", "staging", "conflicts", "conflicts.csv")
     for r in read_csv(conflict_csv):
