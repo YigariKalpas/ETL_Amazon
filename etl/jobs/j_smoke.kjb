@@ -101,7 +101,7 @@
       <unconditional>Y</unconditional>
     </hop>
     <hop>
-      <from>Start</from>
+      <from>00_verify</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>

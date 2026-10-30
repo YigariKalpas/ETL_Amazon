@@ -158,10 +158,11 @@ def emit(path: str, job_name: str, desc: str, steps) -> None:
     prev = "Start"
     for name, _s, _a, _d in steps:
         hops.append(hop(prev, name, "Y", "N" if prev != "Start" else "Y"))
+        # 失败跳转必须从"当前步骤"出发；PG 步骤走 WARN 分支
         if name == "11_load_pg":
-            hops.append(hop(prev, "WARN_pg_unavailable", "N", "N"))
+            hops.append(hop(name, "WARN_pg_unavailable", "N", "N"))
         else:
-            hops.append(hop(prev, "Failure", "N", "N"))
+            hops.append(hop(name, "Failure", "N", "N"))
         prev = name
     hops.append(hop(prev, "Success", "Y", "N"))
     if any(n == "11_load_pg" for n, _s, _a, _d in steps):

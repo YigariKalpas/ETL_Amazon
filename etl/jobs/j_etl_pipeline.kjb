@@ -330,7 +330,7 @@
       <unconditional>Y</unconditional>
     </hop>
     <hop>
-      <from>Start</from>
+      <from>01_parse_pages</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -348,7 +348,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>01_parse_pages</from>
+      <from>02_classify</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -366,7 +366,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>02_classify</from>
+      <from>03_movie_entities</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -384,7 +384,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>03_movie_entities</from>
+      <from>04_person_entities</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -402,7 +402,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>04_person_entities</from>
+      <from>05_field_assertions</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -420,7 +420,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>05_field_assertions</from>
+      <from>06_build_target</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -438,7 +438,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>06_build_target</from>
+      <from>07_release_dates</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -456,7 +456,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>07_release_dates</from>
+      <from>08_field_conflicts</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -474,7 +474,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>08_field_conflicts</from>
+      <from>09_dedup_reviews</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -492,7 +492,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>09_dedup_reviews</from>
+      <from>10_build_target2</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -510,7 +510,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>10_build_target2</from>
+      <from>11_load_pg</from>
       <to>WARN_pg_unavailable</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
@@ -528,7 +528,7 @@
       <unconditional>N</unconditional>
     </hop>
     <hop>
-      <from>11_load_pg</from>
+      <from>12_verify_target</from>
       <to>Failure</to>
       <from_nr>0</from_nr>
       <to_nr>0</to_nr>
