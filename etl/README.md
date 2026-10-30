@@ -39,6 +39,11 @@
 失败分支：SHELL 项设置 `<failOnError>Y` 语义（非 0 退出即算失败），
 每个步骤都有一条 `evaluation=N` 的跳转到 Failure。
 
+**例外（PG 非阻断）**：`11_load_pg` 失败不再中断整条作业——它有一条专门的失败跳转到 `WARN_pg_unavailable`（DUMMY 节点），该节点再无条件跳回 `12_verify_target`。这样 PostgreSQL 不可用时 SQLite 侧仍完成建表、去重与自检，避免「PG 挂掉导致整轮 ETL 失败」的连锁损失。
+
+    Start → ... → 10_build_target2 → 11_load_pg ─(成功)→ 12_verify_target
+                                        └─(失败)→ WARN_pg_unavailable → 12_verify_target
+
 ## 三、参数
 
 | 参数 | 默认 | 说明 |

@@ -106,6 +106,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="本波连续几轮窗口恶化就中止（越小越省预算）")
     ap.add_argument("--refresh-every-waves", type=int, default=5,
                     help="每 N 个波次刷新一次目标层（0=不刷新）")
+    # 【KEY-93】自适应波次大小：上一波成功率低就少采，避免把预算耗在验证页上
+    ap.add_argument("--adaptive", type=int, default=1, help="1=按上波成功率调整每波目标数")
+    ap.add_argument("--sample-min", type=int, default=50)
+    ap.add_argument("--sample-max", type=int, default=100)
     args = ap.parse_args(argv)
 
     t0 = time.monotonic()   # 【KEY-29】用单调时钟：机器休眠/改系统时间不应让 max-hours 提前结束
@@ -113,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     blocked_streak = 0
     cooldown = args.cooldown_blocked
     cur_delay = args.delay
+    cur_sample = max(args.sample_min, min(args.sample_max, args.sample_per_wave))
 
     base = counts()
     log("start: success=%d target=%d delay=%.0fs sample/wave=%d maxHours=%.1f"
@@ -145,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         with open(wave_log, "w", encoding="utf-8") as fh:
             subprocess.run(
                 [PY, "-u", CRAWLER,
-                 "--sample", str(args.sample_per_wave),
+                 "--sample", str(cur_sample),
                  "--delay", str(cur_delay),
                  "--jitter", str(args.jitter),
                  "--concurrency", str(args.concurrency),
@@ -156,7 +161,21 @@ def main(argv: list[str] | None = None) -> int:
 
         after = counts().get("success", 0)
         gain = after - before
-        log("wave %d end: gain=%d success_total=%d" % (wave, gain, after))
+        log("wave %d end: gain=%d success_total=%d (sample=%d)"
+            % (wave, gain, after, cur_sample))
+
+        if args.adaptive:
+            rate = float(gain) / max(1, cur_sample)
+            if rate < 0.40:
+                new_sample = max(args.sample_min, int(cur_sample * 0.6))
+            elif rate > 0.70:
+                new_sample = min(args.sample_max, cur_sample + 20)
+            else:
+                new_sample = cur_sample
+            if new_sample != cur_sample:
+                log("sample %d -> %d (last wave success rate %.0f%%)"
+                    % (cur_sample, new_sample, 100.0 * rate))
+            cur_sample = new_sample
 
         if args.refresh_every_waves and wave % args.refresh_every_waves == 0:
             log("refresh target layer ...")

@@ -151,13 +151,21 @@ def emit(path: str, job_name: str, desc: str, steps) -> None:
     parts.append(special("Failure", 1200, 300, "N", "Y"))
     for i, (name, _s, _a, _d) in enumerate(steps, start=1):
         parts.append(shell(name, 300 + ((i - 1) % 3) * 220, 120 + ((i - 1) // 3) * 140))
+    # 【KEY-92】PG 装载失败不阻断：走 WARN 节点后继续后续步骤
+    if any(n == "11_load_pg" for n, _s, _a, _d in steps):
+        parts.append(special("WARN_pg_unavailable", 1200, 460, "N", "Y"))
     hops = []
     prev = "Start"
     for name, _s, _a, _d in steps:
         hops.append(hop(prev, name, "Y", "N" if prev != "Start" else "Y"))
-        hops.append(hop(prev, "Failure", "N", "N"))
+        if name == "11_load_pg":
+            hops.append(hop(prev, "WARN_pg_unavailable", "N", "N"))
+        else:
+            hops.append(hop(prev, "Failure", "N", "N"))
         prev = name
     hops.append(hop(prev, "Success", "Y", "N"))
+    if any(n == "11_load_pg" for n, _s, _a, _d in steps):
+        hops.append(hop("WARN_pg_unavailable", "12_verify_target", "Y", "Y"))
     parts.append(TAIL % ("".join(hops), job_name))
     with io.open(path, "w", encoding="utf-8") as fh:
         fh.write("".join(parts))
