@@ -50,6 +50,24 @@ STEPS = [
 ]
 
 
+STATE = os.path.join(ROOT, "data", "staging", ".pipeline_state.json")
+
+
+def fingerprint():
+    """【KEY-95】用采集库的行数/成功数/最新抓取时间做输入指纹，判断是否需要重跑。"""
+    import sqlite3
+    db = os.path.join(ROOT, "data", "crawler", "products.sqlite")
+    if not os.path.isfile(db):
+        return None
+    conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+    try:
+        rows = conn.execute("SELECT COUNT(*) FROM product_page").fetchone()[0]
+        ok = conn.execute("SELECT COUNT(*) FROM product_page WHERE status='success'").fetchone()[0]
+        last = conn.execute("SELECT MAX(fetched_at) FROM product_page").fetchone()[0]
+    finally:
+        conn.close()
+    return {"rows": rows, "success": ok, "max_fetched": last}
+
 def main(argv=None) -> int:
     # 【KEY-68】子进程输出含中文/替换字符，Windows 控制台默认 GBK 会 UnicodeEncodeError
     for stream in (sys.stdout, sys.stderr):
@@ -60,11 +78,25 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--from", dest="start", type=int, default=1, help="从第几步开始（1 起）")
     ap.add_argument("--skip-pg", action="store_true")
+    ap.add_argument("--force", action="store_true", help="忽略指纹，强制全跑")
     args = ap.parse_args(argv)
     os.makedirs(LOGDIR, exist_ok=True)
     log_path = os.path.join(LOGDIR, "pipeline.log")
     t0 = time.time()
     failed = []
+
+    fp = fingerprint()
+    if fp and not args.force and args.start == 1:
+        try:
+            with open(STATE, "r", encoding="utf-8") as fh:
+                prev = json.load(fh)
+        except (OSError, ValueError):
+            prev = {}
+        if prev.get("fingerprint") == fp:
+            print("no new data since last run（fingerprint=%s），跳过全量管线"
+                  % fp)
+            print("如需强制重跑：--force")
+            return 0
 
     for idx, (name, cmd) in enumerate(STEPS, start=1):
         if idx < args.start:
@@ -93,6 +125,14 @@ def main(argv=None) -> int:
     if failed:
         print("FAILED at: %s（日志 %s）" % (", ".join(failed), log_path))
         return 1
+    if fp:
+        try:
+            with open(STATE, "w", encoding="utf-8") as fh:
+                json.dump({"fingerprint": fp,
+                           "finished_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
+                          fh, ensure_ascii=False)
+        except OSError:
+            pass
     print("pipeline ok（日志 %s）" % log_path)
     return 0
 

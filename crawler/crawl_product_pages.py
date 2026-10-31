@@ -459,6 +459,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--timeout", type=int, default=30)
     ap.add_argument("--proxy", default="", help="自有代理地址；不得用于规避访问限制")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--probe", action="store_true",
+                    help="【KEY-94】只探测一次窗口：成功退出 0、被限流退出 2、其他退出 1")
     ap.add_argument("--ignore-robots", action="store_true", help="【不合规】仅调试")
     ap.add_argument("--min-free-gb", type=float, default=20.0, help="磁盘可用低于此值即停止")
     ap.add_argument("--chunk", type=int, default=200, help="每批提交数（批间检查水位与停止标记）")
@@ -500,6 +502,21 @@ def main(argv: list[str] | None = None) -> int:
     if not pending:
         print("没有待采集目标。")
         return 0
+    if args.probe:
+        # 探针：只发 1 个请求，用来判断当前窗口是否还开放，避免整波白跑
+        robots, rsrc = ensure_robots(r"E:\ETL_Amazon\data\crawler\robots_amazon.txt",
+                                     args.proxy or None, args.timeout)
+        print("robots        = %s" % rsrc)
+        asin = pending[0]
+        status, http_status, _url, _body, note = fetch_once(
+            build_url(asin), asin, args.timeout, args.proxy or None)
+        print("probe         = %s http=%s %s" % (status, http_status, note))
+        if status == ST_SUCCESS:
+            return 0
+        if status in (ST_VALIDATION, ST_RESTRICTED):
+            return 2
+        return 1
+
     if args.dry_run:
         for a in pending[:10]:
             print("  would fetch %s" % build_url(a))
