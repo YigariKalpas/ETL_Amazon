@@ -200,23 +200,43 @@ def main(argv=None) -> int:
     keys = sorted(items)
     print("candidates_loaded = %d" % len(keys))
 
-    # ---------- 候选生成 + 判定 ----------
+    # ---------- 候选生成（分块，避免 O(n^2) difflib） ----------
+    # 【KEY-96】先用标准化标题的 token 建倒排索引，只比较共享 token 的商品对；
+    # 高频词（the/collection 等）跳过，防止桶爆炸。同标题对无论如何都进候选。
+    block_index = defaultdict(list)
+    for k in keys:
+        toks = {t for t in items[k]["norm"].split() if len(t) >= 3}
+        for t in toks:
+            block_index[t].append(k)
+    cand = set()
+    skipped_hot = 0
+    for tok, members in block_index.items():
+        if len(members) < 2:
+            continue
+        if len(members) > 200:
+            skipped_hot += 1
+            continue
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                cand.add((members[i], members[j]))
+    print("candidate_pairs   = %d (blocks=%d, skipped_hot=%d)"
+          % (len(cand), len(block_index), skipped_hot))
+
     decisions = []
-    for i in range(len(keys)):
-        a = items[keys[i]]
-        for j in range(i + 1, len(keys)):
-            b = items[keys[j]]
-            if a["family"] != b["family"]:
+    for a_asin, b_asin in sorted(cand):
+        a, b = items[a_asin], items[b_asin]
+        if a["family"] != b["family"]:
+            continue
+        same_norm = a["norm"] == b["norm"] and a["norm"] != ""
+        if not same_norm:
+            if abs(len(a["title_raw"]) - len(b["title_raw"])) > 40:
                 continue
-            same_norm = a["norm"] == b["norm"] and a["norm"] != ""
-            if not same_norm:
-                if abs(len(a["title_raw"]) - len(b["title_raw"])) > 40:
-                    continue
-                rough = difflib.SequenceMatcher(None, a["title_raw"].lower(), b["title_raw"].lower()).ratio()
-                if rough < CANDIDATE_TITLE_RATIO:
-                    continue
-            ev = compare(a, b)
-            decisions.append({"asin_a": keys[i], "asin_b": keys[j], **ev})
+            rough = difflib.SequenceMatcher(None, a["title_raw"].lower(),
+                                            b["title_raw"].lower()).ratio()
+            if rough < CANDIDATE_TITLE_RATIO:
+                continue
+        ev = compare(a, b)
+        decisions.append({"asin_a": a_asin, "asin_b": b_asin, **ev})
 
     # 【KEY-49】人工复核结果回灌：accept 提升为 auto，reject 保持不合并
     overrides = {}
