@@ -31,6 +31,8 @@ PY = os.path.join(ROOT, ".venv", "Scripts", "python.exe")
 CRAWLER = os.path.join(ROOT, "crawler", "crawl_product_pages.py")
 PURGE = os.path.join(ROOT, "crawler", "purge_invalid_snapshots.py")
 PIPELINE = os.path.join(ROOT, "crawler", "run_pipeline.py")
+# 【KEY-98】探测冷却阶梯：恢复窗口时最多晚 20 分钟，之后逐步拉长到 4 小时
+PROBE_COOLDOWN = [1200, 3600, 7200, 14400]
 RUNTIME = os.path.join(ROOT, "data", "crawler", "runtime")
 
 
@@ -118,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     cooldown = args.cooldown_blocked
     cur_delay = args.delay
     cur_sample = max(args.sample_min, min(args.sample_max, args.sample_per_wave))
+    probe_streak = 0
 
     base = counts()
     log("start: success=%d target=%d delay=%.0fs sample/wave=%d maxHours=%.1f"
@@ -136,18 +139,20 @@ def main(argv: list[str] | None = None) -> int:
             log("target reached: success=%d -> exit" % cur["success"])
             break
         # 【KEY-94】开波前先探测窗口：被限流就跳过整波，不把预算耗在验证页上
+        # 【KEY-98】探测冷却用独立阶梯 20min -> 1h -> 2h -> 4h，恢复时最多晚 20 分钟
         probe = subprocess.run([PY, CRAWLER, "--probe"], cwd=ROOT,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if probe.returncode == 2:
-            blocked_streak += 1
-            cooldown = min(args.cooldown_blocked * (2 ** max(0, blocked_streak - 1)),
-                           args.cooldown_cap)
+            probe_streak += 1
+            idx = min(probe_streak - 1, len(PROBE_COOLDOWN) - 1)
+            cooldown = min(PROBE_COOLDOWN[idx], args.cooldown_cap)
             log("probe: window closed (streak=%d) -> cooldown %ds"
-                % (blocked_streak, cooldown))
+                % (probe_streak, cooldown))
             end = time.monotonic() + cooldown
             while time.monotonic() < end and not os.path.isfile(STOP):
                 time.sleep(min(30, max(1, end - time.monotonic())))
             continue
+        probe_streak = 0
 
         if blocked_streak >= args.max_blocked_waves:
             log("blocked %d waves in a row -> exit" % blocked_streak)

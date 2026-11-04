@@ -310,6 +310,14 @@ def fetch_once(url: str, asin: str, timeout: int, proxy: str | None):
         code = e.code
         final_url = e.geturl() if hasattr(e, "geturl") else url
         status, note = classify(code, body.decode("utf-8", "replace"), asin)
+        # 【KEY-97】尊重服务端 Retry-After（合规做法：按站点提示等待，而不是硬撞）
+        ra = None
+        try:
+            ra = e.headers.get("Retry-After") if e.headers else None
+        except Exception:
+            ra = None
+        if ra:
+            note = (note + ";retry_after=" + str(ra)[:20]) if note else ("retry_after=" + str(ra)[:20])
         return status, code, final_url, body, note
     except (socket.timeout, TimeoutError):
         return ST_TIMEOUT, None, url, b"", "socket_timeout"
@@ -423,7 +431,12 @@ def process_one(asin: str, ctx: dict) -> dict:
             # 【KEY-21】遇到验证页不原地重试：交给退避暂停，后续运行再从 pending 取
             break
         if attempts < args.max_attempts and status in (ST_RESTRICTED, ST_TIMEOUT, ST_PARSE_FAILED):
-            time.sleep(min(args.delay * (2 ** (attempts - 1)), 30) + random.uniform(0, args.jitter))
+            sleep_s = min(args.delay * (2 ** (attempts - 1)), 30) + random.uniform(0, args.jitter)
+            # 【KEY-97】若服务端给了 Retry-After，按它的秒数等待（上限 300 秒）
+            m = re.search(r"retry_after=([0-9]+)", note or "")
+            if m:
+                sleep_s = min(max(sleep_s, float(m.group(1))), 300.0)
+            time.sleep(sleep_s)
 
     snap = digest = None
     length = None
