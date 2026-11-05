@@ -214,6 +214,41 @@ a{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}
     html.append(card("字段断言", t.get("field_assertion", 0), "字段选择 %d" % t.get("field_selection", 0)))
     html.append("</div></section>")
 
+    # 【KEY-99】目标进度 + 按天产出（可视化数据来自 data/export/viz_bundle.json 同源计算）
+    goal = 10000
+    marker = os.path.join(ROOT, "data", "crawler", "runtime", "forever.json")
+    if os.path.isfile(marker):
+        try:
+            with io.open(marker, encoding="utf-8") as fh:
+                goal = int(json.load(fh).get("target") or 10000)
+        except (OSError, ValueError):
+            pass
+    pct = 100.0 * success / max(1, goal)
+    html.append("<section><h2>目标进度</h2>")
+    html.append('<div class="bar" style="height:34px"><span style="width:%.1f%%;background:#38bdf8"></span>'
+                '<em>%d / %d 成功页（%.1f%%）｜剩余 %d</em></div>' % (
+                    pct, success, goal, pct, max(0, goal - success)))
+    html.append("</section>")
+
+    day_rows = []
+    if os.path.isfile(CRAWL_DB):
+        dc = sqlite3.connect("file:%s?mode=ro" % CRAWL_DB, uri=True)
+        day_rows = dc.execute(
+            "SELECT substr(fetched_at,1,10) d, SUM(status='success'), COUNT(*) "
+            "FROM product_page WHERE fetched_at IS NOT NULL GROUP BY d ORDER BY d DESC LIMIT 14").fetchall()
+        dc.close()
+    if day_rows:
+        peak = max(1, max(r[1] or 0 for r in day_rows))
+        html.append("<section><h2>按天产出（最近 14 天）</h2><table>"
+                    "<tr><th>日期</th><th>请求</th><th>成功</th><th>成功率</th><th>柱</th></tr>")
+        for d, s, n in day_rows:
+            s = s or 0
+            w = 100.0 * s / peak
+            html.append('<tr><td>%s</td><td>%d</td><td>%d</td><td>%.0f%%</td>'
+                        '<td><span style="display:inline-block;height:10px;width:%.0f%%;'
+                        'background:#4ade80;opacity:.6"></span></td></tr>' % (
+                            d, n, s, 100.0 * s / max(1, n), w))
+        html.append("</table></section>")
     html.append("<section><h2>采集状态分布</h2>%s</section>" % bars())
 
     html.append("<section><h2>全链路阶段（从采集到目标层）</h2><div class=stages>")

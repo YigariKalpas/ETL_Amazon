@@ -93,9 +93,14 @@ def main(argv: list[str] | None = None) -> int:
     entries = []
     gz_total = raw_total = 0
     ok = 0
+    expected_no_snap = 0
     for asin, status, snap, sha, length in rows:
         if not snap:
-            problems.append((asin, "no_snapshot_path"))
+            # 【KEY-100】timeout 属于"没有响应体"，本来就不会有快照；不算完整性问题
+            if status in ("timeout", "not_collected"):
+                expected_no_snap += 1
+            else:
+                problems.append((asin, "no_snapshot_path"))
             continue
         if not os.path.isfile(snap):
             problems.append((asin, "file_missing"))
@@ -136,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     print("db_rows        = %d" % len(rows))
     print("verified_ok    = %d" % ok)
     print("problems       = %d" % len(problems))
+    if expected_no_snap:
+        print("expected_no_snap = %d（timeout/未采集，无响应体属正常）" % expected_no_snap)
     for asin, why in problems[:args.limit_problems]:
         print("   %s  %s" % (asin, why))
     print("orphan_files   = %d" % len(orphans))
